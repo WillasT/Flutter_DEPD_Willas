@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_mvvm/data/network/network_api_services.dart';
 import 'package:flutter_mvvm/data/response/api_response.dart';
 import 'package:flutter_mvvm/model/model.dart';
 import 'package:flutter_mvvm/repository/home_repository.dart';
 import 'package:flutter_mvvm/model/costs/shipping_cost.dart';
+import 'package:flutter_mvvm/data/response/status.dart';
 
 class HomeViewmodel with ChangeNotifier {
   final _homeRepo = HomeRepository();
@@ -16,11 +18,12 @@ class HomeViewmodel with ChangeNotifier {
 
   Future<void> getProvinceList() async {
     setProvinceList(ApiResponse.loading());
-    _homeRepo.fetchProvinceList().then((value) {
-      setProvinceList(ApiResponse.completed(value));
-    }).onError((error, stackTrace) {
-      setProvinceList(ApiResponse.error(error.toString()));
-    });
+    try {
+      final provinces = await _homeRepo.fetchProvinceList();
+      setProvinceList(ApiResponse.completed(provinces));
+    } catch (e) {
+      setProvinceList(ApiResponse.error(e.toString()));
+    }
   }
 
   ApiResponse<List<City>> cityList = ApiResponse.loading();
@@ -30,13 +33,24 @@ class HomeViewmodel with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> getCityList(var provId) async {
-    setCityList(ApiResponse.loading());
-    _homeRepo.fetchCityList(provId).then((value) {
-      setCityList(ApiResponse.completed(value));
-    }).onError((error, stackTrace) {
-      setCityList(ApiResponse.error(error.toString()));
-    });
+  Future<void> getCityList(String provinceId) async {
+    try {
+      print('Fetching cities for province ID: $provinceId');
+      cityList = ApiResponse.loading();
+      notifyListeners();
+
+      var cities = await _homeRepo.fetchCityList(provinceId);
+
+      print('Cities fetched: ${cities.length}');
+      cityList = ApiResponse.completed(cities);
+    } catch (e, stackTrace) {
+      print('Detailed error fetching cities:');
+      print('Error: ${e.runtimeType} - $e');
+      print('Stacktrace: $stackTrace');
+
+      cityList = ApiResponse.error(e.toString());
+    }
+    notifyListeners();
   }
 
   ApiResponse<List<ShippingCost>> shippingCost = ApiResponse.loading();
@@ -47,12 +61,17 @@ class HomeViewmodel with ChangeNotifier {
     required int weight,
     required String courier,
   }) async {
-    // Set the state to loading before making the API call
     shippingCost = ApiResponse.loading();
     notifyListeners();
 
     try {
-      // Call the API service to calculate shipping costs
+      // Add logging to debug the API call
+      print('Calculating shipping cost with parameters:');
+      print('Origin City ID: $originCityId');
+      print('Destination City ID: $destinationCityId');
+      print('Weight: $weight');
+      print('Courier: $courier');
+
       final costs = await _homeRepo.calculateShippingCost(
         originCityId: originCityId,
         destinationCityId: destinationCityId,
@@ -60,20 +79,26 @@ class HomeViewmodel with ChangeNotifier {
         courier: courier,
       );
 
-      // Update the shipping cost with the received data
-      shippingCost = ApiResponse.completed(costs);
+      if (costs.isEmpty) {
+        shippingCost = ApiResponse.error(
+            'No shipping costs available for the selected route');
+      } else {
+        shippingCost = ApiResponse.completed(costs);
+      }
     } catch (e) {
-      // Handle any errors that occur during the API call
-      shippingCost = ApiResponse.error(e.toString());
+      print('Error calculating shipping cost: $e');
+      String errorMessage = 'Failed to calculate shipping cost';
+
+      // if (e is NotFoundException) {
+      //   errorMessage =
+      //       'Route not found or service unavailable for selected cities';
+      // } else if (e is Exception) {
+      //   errorMessage = e.toString();
+      // }
+
+      shippingCost = ApiResponse.error(errorMessage);
     }
 
-    // Notify listeners of the state change
-    notifyListeners();
-  }
-
-  // Optional: Method to reset shipping cost
-  void resetShippingCost() {
-    shippingCost = ApiResponse.loading();
     notifyListeners();
   }
 }

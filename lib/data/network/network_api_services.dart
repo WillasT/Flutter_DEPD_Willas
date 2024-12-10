@@ -9,47 +9,51 @@ import 'package:flutter_mvvm/data/network/base_api_services.dart';
 
 class NetworkApiServices implements BaseApiServices {
   @override
-  Future getApiResponse(String endpoint) async {
-    dynamic responseJson;
-    try {
-      final response = await http.get(
-        Uri.https(Const.baseUrl, endpoint),
-        headers: <String, String>{
-          'Content-Type': 'application/json; charset=UTF-8',
-          'key': Const.apiKey
-        }
-      );
-      responseJson = returnResponse(response);
-    } on SocketException {
-      throw NoInternetException('No internet connection');
-    } on TimeoutException {
-      throw FetchDataException('Network request timeout!');
-    }
+  Future getApiResponse(String endpoint, {Map<String, String>? queryParameters}) async {
+  try {
+    final uri = Uri.https(Const.baseUrl, endpoint, queryParameters);
+    print('API Request: $uri');
 
-    return responseJson;
+    final response = await http.get(
+      uri,
+      headers: {
+        'Content-Type': 'application/json; charset=UTF-8',
+        'key': Const.apiKey,
+      },
+    );
+
+    print('API Response: ${response.body}');
+    return returnResponse(response);
+  } catch (e) {
+    print('Error in API Request: $e');
+    rethrow;
   }
+}
 
-  @override
-  Future postApiResponse(String endpoint, dynamic data) async {
-    dynamic responseJson;
-    try {
-      final response = await http.post(
-        Uri.https(Const.baseUrl, endpoint),
-        headers: <String, String>{
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'key': Const.apiKey
-        },
-        body: data
-      );
-      responseJson = returnResponse(response);
-    } on SocketException {
-      throw NoInternetException('No internet connection');
-    } on TimeoutException {
-      throw FetchDataException('Network request timeout!');
-    }
 
-    return responseJson;
+
+   @override
+Future postApiResponse(String endpoint, dynamic data) async {
+  dynamic responseJson;
+  try {
+    final response = await http.post(
+      Uri.https(Const.baseUrl , endpoint),
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        'key': Const.apiKey,
+      },
+      body: data
+    );
+    print("URL: ${Uri.https(Const.baseUrl , endpoint)}");
+    print("Data: $data");
+    print("Response status: ${response.statusCode}");
+    print("Response body: ${response.body}");
+    responseJson = returnResponse(response);
+  } on SocketException {
+    throw NoInternetException('');
   }
+  return responseJson;
+}
 
   dynamic returnResponse(http.Response response) {
     switch (response.statusCode) {

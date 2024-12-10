@@ -35,6 +35,43 @@ class _CostPageState extends State<CostPage> {
     super.dispose();
   }
 
+  bool isCityInList(City? city, List<City>? cityList) {
+    if (city == null || cityList == null) return false;
+    return cityList.any((c) => c.cityId == city.cityId);
+  }
+
+  List<City> originCities = [];
+  List<City> destinationCities = [];
+
+  // Add these methods to handle city loading
+  void loadOriginCities(String provinceId) async {
+    setState(() {
+      selectedOriginCity = null;
+      originCities = [];
+    });
+    await homeViewmodel.getCityList(provinceId);
+    if (homeViewmodel.cityList.status == Status.completed &&
+        homeViewmodel.cityList.data != null) {
+      setState(() {
+        originCities = homeViewmodel.cityList.data!;
+      });
+    }
+  }
+
+  void loadDestinationCities(String provinceId) async {
+    setState(() {
+      selectedDestinationCity = null;
+      destinationCities = [];
+    });
+    await homeViewmodel.getCityList(provinceId);
+    if (homeViewmodel.cityList.status == Status.completed &&
+        homeViewmodel.cityList.data != null) {
+      setState(() {
+        destinationCities = homeViewmodel.cityList.data!;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -72,14 +109,16 @@ class _CostPageState extends State<CostPage> {
                               case Status.loading:
                                 return CircularProgressIndicator();
                               case Status.error:
-                                return Text(value.provinceList.message.toString());
+                                return Text(
+                                    value.provinceList.message.toString());
                               case Status.completed:
                                 return DropdownButton<Province>(
                                   isExpanded: true,
                                   value: selectedOriginProvince,
                                   hint: Text('Select Origin Province'),
                                   items: value.provinceList.data!
-                                      .map<DropdownMenuItem<Province>>((Province province) {
+                                      .map<DropdownMenuItem<Province>>(
+                                          (Province province) {
                                     return DropdownMenuItem<Province>(
                                       value: province,
                                       child: Text(province.province.toString()),
@@ -89,7 +128,10 @@ class _CostPageState extends State<CostPage> {
                                     setState(() {
                                       selectedOriginProvince = newValue;
                                       selectedOriginCity = null;
-                                      homeViewmodel.getCityList(selectedOriginProvince.provinceId);
+                                      if (newValue != null) {
+                                        loadOriginCities(
+                                            selectedOriginProvince.provinceId);
+                                      }
                                     });
                                   },
                                 );
@@ -112,7 +154,7 @@ class _CostPageState extends State<CostPage> {
                                   isExpanded: true,
                                   value: selectedOriginCity,
                                   hint: Text('Select Origin City'),
-                                  items: value.cityList.data!
+                                  items: originCities
                                       .map<DropdownMenuItem<City>>((City city) {
                                     return DropdownMenuItem<City>(
                                       value: city,
@@ -156,14 +198,16 @@ class _CostPageState extends State<CostPage> {
                               case Status.loading:
                                 return CircularProgressIndicator();
                               case Status.error:
-                                return Text(value.provinceList.message.toString());
+                                return Text(
+                                    value.provinceList.message.toString());
                               case Status.completed:
                                 return DropdownButton<Province>(
                                   isExpanded: true,
                                   value: selectedDestinationProvince,
                                   hint: Text('Select Destination Province'),
                                   items: value.provinceList.data!
-                                      .map<DropdownMenuItem<Province>>((Province province) {
+                                      .map<DropdownMenuItem<Province>>(
+                                          (Province province) {
                                     return DropdownMenuItem<Province>(
                                       value: province,
                                       child: Text(province.province.toString()),
@@ -173,7 +217,11 @@ class _CostPageState extends State<CostPage> {
                                     setState(() {
                                       selectedDestinationProvince = newValue;
                                       selectedDestinationCity = null;
-                                      homeViewmodel.getCityList(selectedDestinationProvince.provinceId);
+                                      if (newValue != null) {
+                                        loadDestinationCities(
+                                            selectedDestinationProvince
+                                                .provinceId);
+                                      }
                                     });
                                   },
                                 );
@@ -192,11 +240,27 @@ class _CostPageState extends State<CostPage> {
                               case Status.error:
                                 return Text(value.cityList.message.toString());
                               case Status.completed:
+                                // Get unique cities based on cityId
+                                final uniqueCities =
+                                    value.cityList.data!.toSet().toList();
+
+                                // Reset selected city if it's not in the new list
+                                if (selectedDestinationCity != null &&
+                                    !isCityInList(selectedDestinationCity,
+                                        uniqueCities)) {
+                                  WidgetsBinding.instance
+                                      .addPostFrameCallback((_) {
+                                    setState(() {
+                                      selectedDestinationCity = null;
+                                    });
+                                  });
+                                }
+
                                 return DropdownButton<City>(
                                   isExpanded: true,
                                   value: selectedDestinationCity,
                                   hint: Text('Select Destination City'),
-                                  items: value.cityList.data!
+                                  items: destinationCities
                                       .map<DropdownMenuItem<City>>((City city) {
                                     return DropdownMenuItem<City>(
                                       value: city,
@@ -237,7 +301,9 @@ class _CostPageState extends State<CostPage> {
                         TextField(
                           controller: weightController,
                           keyboardType: TextInputType.number,
-                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly
+                          ],
                           decoration: InputDecoration(
                             labelText: 'Weight (gram)',
                             border: OutlineInputBorder(),
@@ -252,7 +318,7 @@ class _CostPageState extends State<CostPage> {
                               .map<DropdownMenuItem<String>>((String courier) {
                             return DropdownMenuItem<String>(
                               value: courier,
-                              child: Text(courier.toUpperCase()),
+                              child: Text(courier),
                             );
                           }).toList(),
                           onChanged: (newValue) {
@@ -307,7 +373,8 @@ class _CostPageState extends State<CostPage> {
                                   return ListTile(
                                     title: Text(
                                       '${cost.service} (${cost.description})',
-                                      style: TextStyle(fontWeight: FontWeight.bold),
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.bold),
                                     ),
                                     subtitle: Text(
                                       'Cost: Rp ${cost.cost[0].value.toString()}',
@@ -351,9 +418,9 @@ class _CostPageState extends State<CostPage> {
 
   void _calculateShippingCost() {
     // Validate all inputs
-    if (selectedOriginCity == null || 
-        selectedDestinationCity == null || 
-        weightController.text.isEmpty || 
+    if (selectedOriginCity == null ||
+        selectedDestinationCity == null ||
+        weightController.text.isEmpty ||
         selectedCourier == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -364,12 +431,62 @@ class _CostPageState extends State<CostPage> {
       return;
     }
 
+    // Validate weight
+    final weight = int.tryParse(weightController.text);
+    if (weight == null || weight <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Please enter a valid weight greater than 0'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // Show loading indicator
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return Center(
+          child: CircularProgressIndicator(),
+        );
+      },
+    );
+
     // Call the shipping cost calculation method
-    homeViewmodel.calculateShippingCost(
+    homeViewmodel
+        .calculateShippingCost(
       originCityId: selectedOriginCity.cityId.toString(),
       destinationCityId: selectedDestinationCity.cityId.toString(),
-      weight: int.parse(weightController.text),
-      courier: selectedCourier!,
-    );
+      weight: weight,
+      courier: selectedCourier!.toLowerCase(),
+    )
+        .then((_) {
+      // Hide loading indicator
+      Navigator.pop(context);
+
+      // Show error message if calculation failed
+      if (homeViewmodel.shippingCost.status == Status.error) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                homeViewmodel.shippingCost.message ?? 'Calculation failed'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }).catchError((error) {
+      // Hide loading indicator
+      Navigator.pop(context);
+
+      // Show error message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to calculate shipping cost: $error'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    });
   }
 }
